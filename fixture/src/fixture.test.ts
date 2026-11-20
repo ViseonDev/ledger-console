@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { codeSegment } from '@/client/ledger';
 import { parseLedgerJson } from '@/client/money';
 import { AccountList, EntryPage, PaymentList, PaymentStatus } from '@/contract/extensions';
 import { Account, Balance, Transaction } from '@/contract/schemas';
@@ -27,7 +28,7 @@ describe('fixture output matches the contract', () => {
     const { accounts } = AccountList.parse(get('/v1/accounts?limit=500'));
     const first = accounts[0]!;
 
-    expect(Account.parse(get(`/v1/accounts/${encodeURIComponent(first.code)}`)).id).toBe(first.id);
+    expect(Account.parse(get(`/v1/accounts/${codeSegment(first.code)}`)).id).toBe(first.id);
     expect(Balance.parse(get(`/v1/accounts/${first.id}/balance`)).authoritative).toBe(false);
 
     const page = EntryPage.parse(get(`/v1/accounts/${first.id}/entries?limit=5`));
@@ -86,6 +87,14 @@ describe('the special accounts', () => {
     const result = route(ledger, new URL(`http://fixture/v1/accounts/${huge.id}/balance`));
 
     expect(result?.status === 200 && result.body).toContain('"balance":9007199254740993');
+  });
+});
+
+describe('account codes', () => {
+  it('does not decode %3A, same as ledger-core', () => {
+    const result = route(ledger, new URL('http://fixture/v1/accounts/assets%3Acash%3Aoperating'));
+
+    expect(result?.status).toBe(404);
   });
 });
 

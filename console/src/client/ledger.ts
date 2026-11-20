@@ -69,7 +69,7 @@ export class LedgerClient {
 
   /** ledger-core looks accounts up by code, not id. */
   accountByCode(code: string) {
-    return this.get(`/v1/accounts/${encodeURIComponent(code)}`, Account);
+    return this.get(`/v1/accounts/${codeSegment(code)}`, Account);
   }
 
   balance(accountId: string, authoritative = false) {
@@ -136,6 +136,12 @@ export class LedgerClient {
 
     return result.data;
   }
+}
+
+// chi doesn't decode path params, so an encoded colon never reaches
+// ledger-core as a colon. Colons are fine in a path segment anyway.
+export function codeSegment(code: string): string {
+  return encodeURIComponent(code).replace(/%3A/gi, ':');
 }
 
 function problemFrom(text: string, response: Response): Problem {

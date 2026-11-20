@@ -27,12 +27,12 @@ describe('responses are validated at the boundary', () => {
     await expect(client.accountByCode(ACCOUNT.code)).resolves.toMatchObject({ id: ACCOUNT.id });
   });
 
-  it('url-encodes the account code', async () => {
+  it('encodes the account code but keeps its colons', async () => {
     const fetchImpl = reply(JSON.stringify(ACCOUNT));
 
-    await clientWith(fetchImpl).accountByCode('a:b c');
+    await clientWith(fetchImpl).accountByCode('a:b c/d');
 
-    expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://ledger/v1/accounts/a%3Ab%20c');
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://ledger/v1/accounts/a:b%20c%2Fd');
   });
 
   it('rejects a payload with a missing field', async () => {

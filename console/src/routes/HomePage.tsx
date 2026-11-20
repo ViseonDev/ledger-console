@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { useLedger } from '@/client/context';
-import { Unsupported } from '@/client/ledger';
+import { Unsupported, codeSegment } from '@/client/ledger';
 import { formatMinor } from '@/client/money';
 import { PaymentChip } from '@/components/Chip';
 import { ErrorNote } from '@/components/ErrorNote';
@@ -27,7 +27,7 @@ function AccountLookup() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = code.trim();
-    if (trimmed) void navigate(`/accounts/${encodeURIComponent(trimmed)}`);
+    if (trimmed) void navigate(`/accounts/${codeSegment(trimmed)}`);
   };
 
   return (
@@ -97,7 +97,7 @@ function AccountRow({ account }: { account: Account }) {
   return (
     <tr data-testid="account-row">
       <td>
-        <Link to={`/accounts/${encodeURIComponent(account.code)}`} className="mono">
+        <Link to={`/accounts/${codeSegment(account.code)}`} className="mono">
           {account.code}
         </Link>
       </td>

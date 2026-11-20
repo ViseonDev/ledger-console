@@ -10,7 +10,8 @@ const PROBLEMS = 'https://ledger.local/problems/';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function route(ledger: Ledger, url: URL): Result | null {
-  const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  // not decoded, same as chi
+  const parts = url.pathname.split('/').filter(Boolean);
   const query = url.searchParams;
 
   if (parts.length === 1 && parts[0] === 'readyz') {
