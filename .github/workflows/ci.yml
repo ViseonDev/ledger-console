@@ -1,0 +1,159 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TZ: UTC
+  NODE_VERSION: "24"
+
+jobs:
+  unit:
+    name: lint, types, unit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vitest run --project unit --reporter=default --reporter=junit --outputFile.junit=build/test-results/unit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-results
+          path: build/test-results/
+
+  contract-fixture:
+    name: contract vs fixture
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      # frozen so the cached vs recomputed check can't race
+      - name: start fixture
+        run: |
+          FIXTURE_ENTRY_INTERVAL_MS=0 node fixture/src/server.ts &
+          timeout 30 bash -c 'until curl -sf localhost:8022/readyz; do sleep 1; done'
+
+      - run: LEDGER_URL=http://localhost:8022 npx vitest run --project contract --reporter=default --reporter=junit --outputFile.junit=build/test-results/contract-fixture.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contract-fixture-results
+          path: build/test-results/
+
+  # same suite against the real service
+  contract-live:
+    name: contract vs ledger-core
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: ledger
+          POSTGRES_PASSWORD: ledger_ci
+          POSTGRES_DB: ledger
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ledger"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:8.10-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-retries 12
+    env:
+      LEDGER_POSTGRES_URL: postgres://ledger:ledger_ci@localhost:5432/ledger?sslmode=disable
+      LEDGER_REDIS_ADDR: localhost:6379
+      LEDGER_HTTP_ADDR: ":8080"
+      LEDGER_GRPC_ADDR: ":9090"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          repository: ViseonDev/ledger-core
+          path: ledger-core
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ledger-core/go.mod
+          cache-dependency-path: ledger-core/go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: build, migrate, seed, start ledger-core
+        working-directory: ledger-core
+        run: |
+          go build -o "$RUNNER_TEMP/ledgerd" ./cmd/ledgerd
+          go build -o "$RUNNER_TEMP/ledgerctl" ./cmd/ledgerctl
+          "$RUNNER_TEMP/ledgerctl" migrate up
+          "$RUNNER_TEMP/ledgerctl" seed
+          "$RUNNER_TEMP/ledgerd" > "$RUNNER_TEMP/ledgerd.log" 2>&1 &
+          timeout 30 bash -c 'until curl -sf localhost:8080/readyz; do sleep 1; done'
+
+      # ledger-core can't list transactions, so post one to read back
+      - name: post a transaction for the suite to read
+        run: |
+          id=$(curl -sf -X POST localhost:8080/v1/transactions \
+            -H 'Content-Type: application/json' \
+            -H "Idempotency-Key: console-ci-${GITHUB_RUN_ID}" \
+            -d '{"reference":"console-contract","currency":"EUR","entries":[
+                  {"account_code":"assets:cash:operating","direction":"DEBIT","amount":1500},
+                  {"account_code":"liabilities:customer:wallet:cus_demo_0001","direction":"CREDIT","amount":1500}]}' \
+            | jq -r .id)
+          echo "CONTRACT_TRANSACTION_ID=$id" >> "$GITHUB_ENV"
+
+      - run: LEDGER_URL=http://localhost:8080 npx vitest run --project contract --reporter=default --reporter=junit --outputFile.junit=build/test-results/contract-live.xml
+
+      - if: failure()
+        run: cat "$RUNNER_TEMP/ledgerd.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contract-live-results
+          path: build/test-results/
+
+  browser:
+    name: browser
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # playwright.config.ts starts the fixture and vite itself
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-results
+          path: |
+            build/test-results/
+            test-results/
