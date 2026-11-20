@@ -41,8 +41,8 @@ export function SagaDiagram({ payment }: { payment: Payment }) {
       {payment.status === 'COMPENSATION_FAILED' && (
         <div role="alert" className="notice notice-bad" data-testid="needs-a-human">
           <p>
-            The saga gave up undoing this payment. Steps still marked <em>Done</em> above have effects
-            that were never reversed.
+            The saga gave up undoing this payment. Steps marked <em>Undo failed</em> above completed
+            and were never reversed.
           </p>
           <p>
             This console is read-only and can't retry it. Follow the ledger's runbook for{' '}
