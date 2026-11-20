@@ -1,0 +1,33 @@
+name: ledger-console
+
+services:
+  fixture:
+    build:
+      context: .
+      dockerfile: fixture/Dockerfile
+    restart: unless-stopped
+    environment:
+      FIXTURE_PORT: "8022"
+      FIXTURE_SEED: ${FIXTURE_SEED:-20260914}
+      FIXTURE_ENTRY_INTERVAL_MS: ${FIXTURE_ENTRY_INTERVAL_MS:-1500}
+    ports:
+      - "127.0.0.1:8022:8022"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8022/readyz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  console:
+    build:
+      context: .
+      dockerfile: console/Dockerfile
+      args:
+        # vite inlines this at build time, so changing it means a rebuild
+        VITE_LEDGER_URL: ${VITE_LEDGER_URL:-http://localhost:8022}
+    restart: unless-stopped
+    depends_on:
+      fixture:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5187:80"

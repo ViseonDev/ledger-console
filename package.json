@@ -1,0 +1,35 @@
+{
+  "name": "ledger-console",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "console",
+    "fixture"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=fixture & npm run dev --workspace=console",
+    "build": "npm run build --workspace=console",
+    "test": "vitest run --project unit",
+    "test:contract:fixture": "LEDGER_URL=http://localhost:8022 vitest run --project contract",
+    "test:contract:live": "vitest run --project contract",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit -p console && tsc --noEmit -p fixture && tsc --noEmit -p tests",
+    "lint": "eslint . && npm run typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
+    "@types/node": "24.10.1",
+    "eslint": "10.15.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "jsdom": "31.0.1",
+    "prettier": "3.10.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vitest": "5.1.1"
+  }
+}
